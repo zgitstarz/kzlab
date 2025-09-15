@@ -1,0 +1,8 @@
+a simple linux character device module.
+
+uses kernel memory as a device
+
+
+implements open, read, write operations
+
+uses semaphores to sync read and write operations
