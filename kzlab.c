@@ -16,12 +16,16 @@ MODULE_AUTHOR("Sina");
 
 struct kzlab_manager kzm;
 
+#define MODULE_NAME "kzlab"
+#define BUF_SIZE 200
+
 
 static int kz_open(struct inode *inode, struct file *filp)
 {
     pr_info("open called\n");
 
     struct kzlab_manager* kz = container_of(inode->i_cdev, struct kzlab_manager, kzc);
+
 
     filp->private_data = kz;
 
@@ -30,28 +34,30 @@ static int kz_open(struct inode *inode, struct file *filp)
 
 static ssize_t kz_read(struct file *filp, char __user *buf, size_t size, loff_t *ppos)
 {
-    pr_info("read happened\n");
+    
+    int fsize = BUF_SIZE;
+    struct kzlab_manager* kz = filp->private_data;
+
+    down_interruptible(&kz->kzsem);
 
     if(*ppos >= BUF_SIZE)
+    {
+        *ppos = 0;
+        up(&kz->kzsem);
         return 0;
-
-    struct kzlab_manager* kz = filp->private_data;
-    if(size >= BUF_SIZE)
-    {
-        if(copy_to_user(buf, kz->kzbuffer, BUF_SIZE))
-            return -EFAULT;
-        *ppos = BUF_SIZE + 1;
-        return BUF_SIZE;
-    }
-    else
-    {
-        if(copy_to_user(buf, kz->kzbuffer, size))
-            return -EFAULT;
-        *ppos = BUF_SIZE + 1;
-        return size;
     }
 
-    return 0;
+    pr_info("read happened\n");
+
+
+    copy_to_user(buf, kz->kzbuffer, BUF_SIZE);
+    
+    *ppos = BUF_SIZE + 1;
+
+    up(&kz->kzsem);
+
+    return BUF_SIZE;
+
 }
 
 static ssize_t kz_write(struct file *filp, const char __user *buf, size_t size, loff_t *ppos)
@@ -83,6 +89,8 @@ static ssize_t kz_write(struct file *filp, const char __user *buf, size_t size, 
 }
 
 
+
+
 struct file_operations fil_op = {
     .owner = THIS_MODULE,
     .open = kz_open,
@@ -93,6 +101,7 @@ struct file_operations fil_op = {
 
 struct class* kz_class;
 struct device* kz_device;
+
 
 
 static int __init kz_init(void)
